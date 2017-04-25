@@ -42,30 +42,39 @@ subscriptions model =
 view : Model -> Html Msg
 view model =
     let
-        f x =
-            100 * ((Dict.get x model.input |> Maybe.withDefault 0))
+        input123 =
+            vec3 (f 1) (f 2) (f 3) |> Vec3.scale 500
+
+        input456 =
+            vec3 (f 4) (f 5) (f 6) |> Vec3.scale 500
 
         location =
-            vec3 (60 + f 1) (60 + f 2) (200 + f 3)
+            vec3 130 80 340
 
         center =
-            vec3 (-10 + f 4) (0 + f 5) (-250 + f 6)
+            vec3 110 10 -210
+
+        light =
+            Vec3.normalize (vec3 0.34 0.405 0.484)
+
+        f x =
+            Dict.get x model.input |> Maybe.withDefault 0
 
         wallsEntity =
             WebGL.entity
-                vertexShader
-                fragmentShader
+                checkerVertexShader
+                checkerFragmentShader
                 walls
                 (Uniforms
-                    (Mat4.makePerspective 45 1 0.01 1000)
+                    (Mat4.makePerspective 45 (16 / 9) 0.01 1000)
                     (Mat4.makeLookAt location center (vec3 0 1 0))
-                    (vec3 0.8 1 0.5)
+                    light
                 )
 
         webgl =
             WebGL.toHtml
-                [ Attr.width (model.windowSize.height - 5)
-                , Attr.height (model.windowSize.height - 5)
+                [ Attr.width model.windowSize.width
+                , Attr.height (model.windowSize.width * 9 // 16)
                 ]
                 [ wallsEntity
                 ]
@@ -92,7 +101,7 @@ view model =
             List.map sliderize [ 1, 2, 3, 4, 5, 6 ]
     in
         Html.div
-            [ Attr.class "flexbox flex-just-start" ]
+            [ Attr.class "" ]
             [ Html.div
                 []
                 [ webgl ]
@@ -125,16 +134,16 @@ walls : Mesh Attributes
 walls =
     let
         colorxy =
-            vec4 0.1 0.1 1 1
+            vec4 0.01 0.6 1 1
 
         colorxz =
-            vec4 0.1 0.1 1 1
+            colorxy
 
         coloryz =
-            vec4 0.1 0.1 1 1
+            colorxy
 
         s =
-            100
+            500
 
         attributes =
             [ ( Attributes (vec3 0 0 0) (vec3 0 0 1) colorxy
@@ -193,6 +202,44 @@ fragmentShader =
         varying vec4 vcolor;
         void main () {
             gl_FragColor = vcolor;
-            gl_FragColor.rgb *= dot(vnormal, light);
+            gl_FragColor.rgb *= dot(vnormal, normalize(light));
+        }
+    |]
+
+
+checkerVertexShader : Shader Attributes Uniforms { vposition : Vec3, vnormal : Vec3, vcolor : Vec4 }
+checkerVertexShader =
+    [glsl|
+        attribute vec3 position;
+        attribute vec3 normal;
+        attribute vec4 color;
+        uniform mat4 perspective;
+        uniform mat4 camera;
+        varying vec3 vposition;
+        varying vec3 vnormal;
+        varying vec4 vcolor;
+        void main () {
+            gl_Position = perspective * camera * vec4(position, 1.0);
+            vposition = position;
+            vnormal = normal;
+            vcolor = color;
+        }
+    |]
+
+
+checkerFragmentShader : Shader {} Uniforms { vposition : Vec3, vnormal : Vec3, vcolor : Vec4 }
+checkerFragmentShader =
+    [glsl|
+        precision mediump float;
+        uniform vec3 light;
+        varying vec3 vposition;
+        varying vec3 vnormal;
+        varying vec4 vcolor;
+        void main () {
+            gl_FragColor = vcolor;
+            gl_FragColor.rgb *= dot(vnormal, normalize(light));
+            if (vnormal.y == 1.0 && mod(floor(vposition.x / 10.0), 2.0) != mod(floor(vposition.z / 10.0), 2.0)) {
+                gl_FragColor.rgb *= 0.8;
+            }
         }
     |]
