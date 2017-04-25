@@ -1,0 +1,9 @@
+div {
+    line-height: 0;
+}
+input[type=range] {
+    width: 50vh;
+}
+input[type=text] {
+    width: 5em;
+}
