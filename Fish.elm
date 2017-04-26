@@ -5,8 +5,6 @@ import Math.Vector2 as Vec2 exposing (vec2, Vec2)
 import Math.Vector3 as Vec3 exposing (vec3, Vec3)
 import Math.Vector4 as Vec4 exposing (vec4, Vec4)
 import Random
-import Time
-import Time exposing (Time)
 import Types exposing (..)
 import WebGL
 
@@ -34,69 +32,194 @@ type alias Varyings =
     }
 
 
-update : Time -> Random.Seed -> Fish -> ( Random.Seed, Fish )
+update : Float -> Random.Seed -> Fish -> ( Random.Seed, Fish )
 update dt seed fish =
     let
         ( random1, seed1 ) =
             Random.step (Random.float 0 1) seed
 
-        {-
-           sM_ = if random1 <= fish.pa then Active else Inactive
-           pt1 = fish.qt
-           rt1 = Vec3.getX pt1
-           uR = if Vec3.length fish.qt < fish.uSPR then pt1 else pt1 - vec3 fish.dGap 0 0
-           ruR = Vec3.getX uR
-           uW = if Vec3.length fish.qt >= fish.uSPR then pt1 else pt1 + vec3 fish.dGap 0 0
-           ruW = Vec3.getX uW
-           wR = fish.drR * fish.tr * fish.tr
-           wW = fish.drW * fish.tr * fish.tr
-           wT = fish.dtheta * fish.tr * rt1 / (fish.uMax - fish.uMin)
-           wP = fish.dphi * fish.tr * rt1 / (fish.uMax - fish.uMin)
+        toPolar3 v =
+            let
+                ( x, y, z ) =
+                    Vec3.toTuple v
+            in
+                vec3 (Vec3.length v) (atan2 y x) (acos (sqrt ((x^2+y^2)/(x^2+y^2+z^2))))
 
-           map f (a, b) = (f a, f b)
+        fromPolar3 v =
+            let
+                ( r, theta, phi ) =
+                    Vec3.toTuple v
+            in
+                vec3 (r * cos phi * cos theta) (r * cos phi * sin theta) (r * sin phi)
 
+        sM =
+            if random1 <= fish.pa then
+                Active
+            else
+                Inactive
 
-           dR = map (clamp (fish.uMin * fish.tr) (fish.uSPR * fish.tr)) (ruR - wR, ruR + wR)
-           dW = map (clamp (fish.uMin * fish.tr) (fish.uSPR * fish.tr)) (ruW - wW, ruW + wW)
-           dtheta = (-wT, wT)
-           dphi = (-wP, wP)
-           domain_r = if fish.sB == Escape then Tuple.mapFirst (max (Tuple.first dW + Tuple.second dW / 2)) dW
-                      else dR
-        -}
-        pt_ = Vec3.add fish.pt (Vec3.scale (Time.inSeconds dt) fish.qt)
-        tube_ =
+        pt1 =
+            Vec3.add fish.pt (Vec3.scale fish.tr fish.qt)
+
+        ( r, theta, phi ) =
+            Vec3.toTuple (toPolar3 fish.pt)
+
+        ( r1, theta1, phi1 ) =
+            Vec3.toTuple (toPolar3 pt1)
+
+        ( drmax, dthetamax, dphimax ) =
+            ( 10, degrees 10, degrees 10 )
+
+        uR =
+            vec3 r1 theta1 phi1
+
+        wrR =
+            drmax * (fish.tr ^ 2)
+
+        wtheta =
+            dthetamax * fish.tr * r1 / (fish.uMax - fish.uMin)
+
+        wphi =
+            dphimax * fish.tr * r1 / (fish.uMax - fish.uMin)
+
+        domainrR =
+            ( r1 - wrR, r1 + wrR )
+
+        domaintheta =
+            ( -wtheta, wtheta )
+
+        domainphi =
+            ( -wphi, wphi )
+
+        clip ( l, r ) ( ll, rr ) =
+            if r <= ll then
+                ( r, r )
+            else if rr <= l then
+                ( l, l )
+            else
+                ( max l ll, min r rr )
+
+        domainrR2 =
+            clip domainrR ( fish.uMin * fish.tr, fish.uSPR * fish.tr )
+
+        dtube =
             case fish.tube of
-                (a::b::c) ->
-                    if Vec3.distance b fish.pt < 10 then b::c ++ [a] else fish.tube
+                a :: b :: c ->
+                    let
+                        ab =
+                            Vec3.normalize (Vec3.sub b a)
+
+                        ptb =
+                            Vec3.sub b fish.pt
+
+                        l =
+                            Vec3.dot ab ptb
+                                |> flip Vec3.scale ab
+                                |> Vec3.sub ptb
+                                |> Vec3.length
+                    in
+                        if l <= 10 then
+                            ab
+                        else
+                            ptb
+
                 _ ->
-                    fish.tube
+                    vec3 0 0 0
+
+        ( thetatube, phitube ) =
+            let
+                ( x, y, z ) =
+                    Vec3.toTuple (toPolar3 dtube)
+            in
+                ( y - theta, z - phi )
+
+        ( wthetatube, wphitube ) =
+            ( degrees 10, degrees 10 )
+
+        domaintheta2 =
+            clip domaintheta ( thetatube - wthetatube, thetatube + wthetatube )
+
+        domainphi2 =
+            clip domainphi ( phitube - wphitube, phitube - wphitube )
+
+        boxmuller seed =
+            let
+                ( u1, seed1 ) =
+                    Random.step (Random.float 0 1) seed
+                ( u2, seed2 ) =
+                    Random.step (Random.float 0 1) seed1
+            in
+                ( sqrt (-2 * logBase e u1) * cos (2 * pi * u2)
+                , sqrt (-2 * logBase e u1) * sin (2 * pi * u2)
+                , seed2
+                )
+
+        ( g1, g2, seed2 ) =
+            boxmuller seed1
+
+        ( g3, g4, seed3 ) =
+            boxmuller seed2
+
+        sample g (l, r) =
+            let
+                gg = g * 1 + (l + r) / 2
+            in
+                clamp l r gg
+
+        pt =
+            fromPolar3 (vec3 r1 theta1 phi1)
+--            fromPolar3 (vec3 (sample g1 domainrR2) (sample g2 domaintheta2) (sample g3 domainphi2))
+
+        (tube, qt) =
+            case fish.tube of
+                a :: b :: c :: d ->
+                    if Vec3.distance b fish.pt < 10 then
+                        (b :: c :: d ++ [ a ], Vec3.scale 2 (Vec3.normalize (Vec3.sub c b)))
+                    else
+                        (fish.tube, fish.qt)
+
+                _ ->
+                    (fish.tube, fish.qt)
+
+        tr =
+            if fish.tr <= dt then
+                fish.tMU
+            else
+                fish.tr - dt
+
         fish_ =
-            { fish | pt = pt_, tube = tube_ }
+            { fish
+                | sM = sM
+                , pt = pt
+                , qt = qt
+                , tube = tube
+                , tr = tr
+            }
     in
-        ( seed, fish_ )
+        ( seed3, fish_ )
 
 
 tube1 : List Vec3
 tube1 =
     [ vec3 50 50 50
-    , vec3 50 10 200
-    , vec3 70 10 200
-    , vec3 70 50 50
+    , vec3 51 51 150
+    , vec3 150 50 151
+    , vec3 201 51 51
     ]
 
 
 fish1 : Fish
 fish1 =
-    { tMU = 0.5 * Time.second
+    { tMU = 0.5
     , uMin = 1
     , uIPW = 10
     , uSPR = 20
     , uMax = 60
-    , pa = 0.8
+    , pa = 0.95
     , dGap = 0
     , uQ = Rest
     , pt = vec3 50 50 50
-    , qt = Vec3.scale 20 (Vec3.normalize (vec3 0 -40 150))
+    , qt = Vec3.scale 2 (Vec3.normalize (vec3 1 1 100))
     , sM = Inactive
     , sB = Free
     , tr = 0

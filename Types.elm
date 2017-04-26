@@ -27,7 +27,7 @@ type SB
 
 
 type alias Fish =
-    { tMU : Time
+    { tMU : Float
     , uMin : Float
     , uIPW : Float
     , uSPR : Float
@@ -39,7 +39,7 @@ type alias Fish =
     , qt : Vec3
     , sM : SM
     , sB : SB
-    , tr : Time
+    , tr : Float
     , spine : Vec4
     , pectoral : Vec2
     , tube : List Vec3

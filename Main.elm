@@ -13,6 +13,7 @@ import Random
 import Result
 import String
 import Task
+import Time exposing (Time)
 import Types exposing (..)
 import Walls
 import WebGL exposing (Mesh, Shader)
@@ -93,28 +94,25 @@ view model =
                     vec3 0 (Vec3.dot Vec3.j f.qt) 0
                         |> Vec3.sub f.qt
                         |> Vec3.normalize
-                        |> Vec3.cross (vec3 -1 0 0)
 
                 rotate1 =
-                    Mat4.rotate (asin <| Vec3.length v1) v1 translate
-
-                v12 =
-                    Mat4.makeRotate (negate << asin <| Vec3.length v1) v1
-                        |> flip Mat4.transform f.qt
+                    Mat4.rotate (acos (Vec3.dot v1 (vec3 -1 0 0))) (Vec3.cross (vec3 -1 0 0) v1) translate
 
                 v2 =
-                    vec3 0 0 (Vec3.dot Vec3.k v12)
-                        |> Vec3.sub v12
+                    Mat4.makeRotate (negate (acos (Vec3.dot v1 (vec3 -1 0 0)))) (Vec3.cross (vec3 -1 0 0) v1)
+                        |> flip Mat4.transform f.qt
                         |> Vec3.normalize
-                        |> Vec3.cross (vec3 -1 0 0)
 
                 rotate2 =
-                    Mat4.rotate (asin <| Vec3.length v2) v2 rotate1
+                    Mat4.rotate (acos (Vec3.dot v2 (vec3 -1 0 0))) (Vec3.cross (vec3 -1 0 0) v2) rotate1
+                rotate3 =
+                    Mat4.rotate (degrees (360 * Vec3.getX input123)) Vec3.j rotate2
+
             in
                 Fish.entity
                     (Fish.Uniforms
-                        (Mat4.mul perspectiveCamera rotate2)
-                        rotate2
+                        (Mat4.mul perspectiveCamera rotate3)
+                        rotate3
                         f.spine
                         f.pectoral
                         light
@@ -185,7 +183,7 @@ update msg model =
                 f fish ( seed, fishes ) =
                     let
                         ( seed_, fish_ ) =
-                            Fish.update dt seed fish
+                            Fish.update (Time.inSeconds dt) seed fish
                     in
                         ( seed_, fish_ :: fishes )
 
