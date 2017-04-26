@@ -150,7 +150,7 @@ view model =
             List.map sliderize [ 1, 2, 3, 4, 5, 6 ]
     in
         Html.div
-            [ Attr.class "" ]
+            []
             [ Html.div
                 []
                 [ webgl ]

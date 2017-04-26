@@ -185,7 +185,7 @@ update dt seed fish =
             if fish.tr <= dt then
                 fish.tMU
             else
-                fish.tr - dt
+                fish.tMU
 
         fish_ =
             { fish
