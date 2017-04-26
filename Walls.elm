@@ -14,8 +14,7 @@ type alias Attributes =
 
 
 type alias Uniforms =
-    { perspective : Mat4
-    , camera : Mat4
+    { mvp : Mat4
     , light : Vec3
     }
 
@@ -84,14 +83,13 @@ vertexShader =
         attribute vec3 normal;
         attribute vec4 color;
 
-        uniform mat4 perspective;
-        uniform mat4 camera;
+        uniform mat4 mvp;
 
         varying vec3 vposition;
         varying vec3 vnormal;
         varying vec4 vcolor;
         void main () {
-            gl_Position = perspective * camera * vec4(position, 1.0);
+            gl_Position = mvp * vec4(position, 1.0);
             vposition = position;
             vnormal = normal;
             vcolor = color;

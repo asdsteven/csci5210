@@ -4,6 +4,7 @@ import Dict exposing (Dict)
 import Math.Vector2 as Vec2 exposing (Vec2)
 import Math.Vector3 as Vec3 exposing (Vec3)
 import Math.Vector4 as Vec4 exposing (Vec4)
+import Random
 import Time exposing (Time)
 import Window
 
@@ -25,7 +26,7 @@ type SB
     | Free
 
 
-type alias Species =
+type alias Fish =
     { tMU : Time
     , uMin : Float
     , uIPW : Float
@@ -33,19 +34,15 @@ type alias Species =
     , uMax : Float
     , pa : Float
     , dGap : Float
-    }
-
-
-type alias Fish =
-    { species : Species
     , uQ : UQ
     , pt : Vec3
-    , pt1 : Vec3
+    , qt : Vec3
     , sM : SM
     , sB : SB
     , tr : Time
     , spine : Vec4
     , pectoral : Vec2
+    , tube : List Vec3
     }
 
 
@@ -53,10 +50,12 @@ type alias Model =
     { windowSize : Window.Size
     , input : Dict Int Float
     , fish : List Fish
+    , seed : Random.Seed
     }
 
 
 type Msg
     = Notify String
     | Resize Window.Size
+    | Diffs Time
     | Input Int String

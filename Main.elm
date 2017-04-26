@@ -1,5 +1,6 @@
 module Main exposing (..)
 
+import AnimationFrame
 import Dict exposing (Dict)
 import Fish
 import Html exposing (Html)
@@ -8,6 +9,7 @@ import Html.Events as Events
 import Math.Matrix4 as Mat4 exposing (Mat4)
 import Math.Vector3 as Vec3 exposing (vec3, Vec3)
 import Ports
+import Random
 import Result
 import String
 import Task
@@ -32,13 +34,17 @@ init =
     { windowSize = Window.Size 100 100
     , input = Dict.empty
     , fish = [ Fish.fish1 ]
+    , seed = Random.initialSeed 23475
     }
         ! [ Task.perform Resize Window.size ]
 
 
 subscriptions : Model -> Sub Msg
 subscriptions model =
-    Window.resizes Resize
+    Sub.batch
+        [ Window.resizes Resize
+        , AnimationFrame.diffs Diffs
+        ]
 
 
 view : Model -> Html Msg
@@ -48,10 +54,10 @@ view model =
             Dict.get x model.input |> Maybe.withDefault 0
 
         input123 =
-            vec3 (f 1) (f 2) (f 3) |> Vec3.scale 500
+            vec3 (f 1) (f 2) (f 3) |> Vec3.scale 1
 
         input456 =
-            vec3 (f 4) (f 5) (f 6) |> Vec3.scale 500
+            vec3 (f 4) (f 5) (f 6) |> Vec3.scale 1
 
         perspective =
             Mat4.makePerspective 45 (16 / 9) 0.01 1000
@@ -65,28 +71,54 @@ view model =
         camera =
             Mat4.makeLookAt location center (vec3 0 1 0)
 
+        perspectiveCamera =
+            Mat4.mul perspective camera
+
         light =
             Vec3.normalize (vec3 0.34 0.405 0.484)
 
         wallsEntity =
             Walls.entity
                 (Walls.Uniforms
-                    perspective
-                    camera
+                    perspectiveCamera
                     light
                 )
 
         fisherize f =
-            Fish.entity
-                (Fish.Uniforms
-                    perspective
-                    camera
-                    light
-                    f.pt
-                    f.pt1
-                    f.spine
-                    f.pectoral
-                )
+            let
+                translate =
+                    Mat4.makeTranslate f.pt
+
+                v1 =
+                    vec3 0 (Vec3.dot Vec3.j f.qt) 0
+                        |> Vec3.sub f.qt
+                        |> Vec3.normalize
+                        |> Vec3.cross (vec3 -1 0 0)
+
+                rotate1 =
+                    Mat4.rotate (asin <| Vec3.length v1) v1 translate
+
+                v12 =
+                    Mat4.makeRotate (negate << asin <| Vec3.length v1) v1
+                        |> flip Mat4.transform f.qt
+
+                v2 =
+                    vec3 0 0 (Vec3.dot Vec3.k v12)
+                        |> Vec3.sub v12
+                        |> Vec3.normalize
+                        |> Vec3.cross (vec3 -1 0 0)
+
+                rotate2 =
+                    Mat4.rotate (asin <| Vec3.length v2) v2 rotate1
+            in
+                Fish.entity
+                    (Fish.Uniforms
+                        (Mat4.mul perspectiveCamera rotate2)
+                        rotate2
+                        f.spine
+                        f.pectoral
+                        light
+                    )
 
         fishEntities =
             List.map fisherize model.fish
@@ -147,3 +179,21 @@ update msg model =
                 | input = Dict.insert i (String.toFloat s |> Result.withDefault 0) model.input
             }
                 ! []
+
+        Diffs dt ->
+            let
+                f fish ( seed, fishes ) =
+                    let
+                        ( seed_, fish_ ) =
+                            Fish.update dt seed fish
+                    in
+                        ( seed_, fish_ :: fishes )
+
+                ( seed, fish ) =
+                    List.foldl f ( model.seed, [] ) model.fish
+            in
+                { model
+                    | fish = fish
+                    , seed = seed
+                }
+                    ! []

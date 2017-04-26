@@ -4,6 +4,9 @@ import Math.Matrix4 as Mat4 exposing (Mat4)
 import Math.Vector2 as Vec2 exposing (vec2, Vec2)
 import Math.Vector3 as Vec3 exposing (vec3, Vec3)
 import Math.Vector4 as Vec4 exposing (vec4, Vec4)
+import Random
+import Time
+import Time exposing (Time)
 import Types exposing (..)
 import WebGL
 
@@ -17,13 +20,11 @@ type alias Attributes =
 
 
 type alias Uniforms =
-    { perspective : Mat4
-    , camera : Mat4
-    , light : Vec3
-    , pt : Vec3
-    , pt1 : Vec3
+    { mvp : Mat4
+    , world : Mat4
     , spine : Vec4
     , pectoral : Vec2
+    , light : Vec3
     }
 
 
@@ -33,29 +34,75 @@ type alias Varyings =
     }
 
 
-species1 : Species
-species1 =
-    { tMU = 0
-    , uMin = 0
-    , uIPW = 0
-    , uSPR = 0
-    , uMax = 0
-    , pa = 0
-    , dGap = 0
-    }
+update : Time -> Random.Seed -> Fish -> ( Random.Seed, Fish )
+update dt seed fish =
+    let
+        ( random1, seed1 ) =
+            Random.step (Random.float 0 1) seed
+
+        {-
+           sM_ = if random1 <= fish.pa then Active else Inactive
+           pt1 = fish.qt
+           rt1 = Vec3.getX pt1
+           uR = if Vec3.length fish.qt < fish.uSPR then pt1 else pt1 - vec3 fish.dGap 0 0
+           ruR = Vec3.getX uR
+           uW = if Vec3.length fish.qt >= fish.uSPR then pt1 else pt1 + vec3 fish.dGap 0 0
+           ruW = Vec3.getX uW
+           wR = fish.drR * fish.tr * fish.tr
+           wW = fish.drW * fish.tr * fish.tr
+           wT = fish.dtheta * fish.tr * rt1 / (fish.uMax - fish.uMin)
+           wP = fish.dphi * fish.tr * rt1 / (fish.uMax - fish.uMin)
+
+           map f (a, b) = (f a, f b)
+
+
+           dR = map (clamp (fish.uMin * fish.tr) (fish.uSPR * fish.tr)) (ruR - wR, ruR + wR)
+           dW = map (clamp (fish.uMin * fish.tr) (fish.uSPR * fish.tr)) (ruW - wW, ruW + wW)
+           dtheta = (-wT, wT)
+           dphi = (-wP, wP)
+           domain_r = if fish.sB == Escape then Tuple.mapFirst (max (Tuple.first dW + Tuple.second dW / 2)) dW
+                      else dR
+        -}
+        pt_ = Vec3.add fish.pt (Vec3.scale (Time.inSeconds dt) fish.qt)
+        tube_ =
+            case fish.tube of
+                (a::b::c) ->
+                    if Vec3.distance b fish.pt < 10 then b::c ++ [a] else fish.tube
+                _ ->
+                    fish.tube
+        fish_ =
+            { fish | pt = pt_, tube = tube_ }
+    in
+        ( seed, fish_ )
+
+
+tube1 : List Vec3
+tube1 =
+    [ vec3 50 50 50
+    , vec3 50 10 200
+    , vec3 70 10 200
+    , vec3 70 50 50
+    ]
 
 
 fish1 : Fish
 fish1 =
-    { species = species1
+    { tMU = 0.5 * Time.second
+    , uMin = 1
+    , uIPW = 10
+    , uSPR = 20
+    , uMax = 60
+    , pa = 0.8
+    , dGap = 0
     , uQ = Rest
-    , pt = vec3 0 0 0
-    , pt1 = vec3 0 0 0
+    , pt = vec3 50 50 50
+    , qt = Vec3.scale 20 (Vec3.normalize (vec3 0 -40 150))
     , sM = Inactive
     , sB = Free
     , tr = 0
     , spine = vec4 0 0 0 0
     , pectoral = vec2 0 0
+    , tube = tube1
     }
 
 
@@ -105,86 +152,23 @@ mesh =
                 _ ->
                     []
 
-        attributes = List.concat
-            [ bellies
-                |> List.map (Mat4.transform (Mat4.makeScale3 1 1 1))
-                |> strip -1 joint
-            , bellies
-                |> List.map (Mat4.transform (Mat4.makeScale3 1 -1 1))
-                |> strip 1 joint
-            , bellies
-                |> List.map (Mat4.transform (Mat4.makeScale3 1 1 -1))
-                |> strip 1 joint
-            , bellies
-                |> List.map (Mat4.transform (Mat4.makeScale3 1 -1 -1))
-                |> strip -1 joint
-            ]
-
-        {-
-           attributes =
-               [ ( Attributes (vec3 0 0 0) (vec3 0 0 -1) color 0
-                 , Attributes (vec3 s 0 0) (vec3 0 0 -1) color 0
-                 , Attributes (vec3 s s 0) (vec3 0 0 -1) color 0
-                 )
-               , ( Attributes (vec3 0 0 0) (vec3 0 0 -1) color 0
-                 , Attributes (vec3 s s 0) (vec3 0 0 -1) color 0
-                 , Attributes (vec3 0 s 0) (vec3 0 0 -1) color 0
-                 )
-               , ( Attributes (vec3 0 0 0) (vec3 0 -1 0) color 0
-                 , Attributes (vec3 s 0 0) (vec3 0 -1 0) color 0
-                 , Attributes (vec3 s 0 s) (vec3 0 -1 0) color 0
-                 )
-               , ( Attributes (vec3 0 0 0) (vec3 0 -1 0) color 0
-                 , Attributes (vec3 s 0 s) (vec3 0 -1 0) color 0
-                 , Attributes (vec3 0 0 s) (vec3 0 -1 0) color 0
-                 )
-               , ( Attributes (vec3 0 0 0) (vec3 -1 0 0) color 0
-                 , Attributes (vec3 0 s 0) (vec3 -1 0 0) color 0
-                 , Attributes (vec3 0 s s) (vec3 -1 0 0) color 0
-                 )
-               , ( Attributes (vec3 0 0 0) (vec3 -1 0 0) color 0
-                 , Attributes (vec3 0 s s) (vec3 -1 0 0) color 0
-                 , Attributes (vec3 0 0 s) (vec3 -1 0 0) color 0
-                 )
-               , ( Attributes (vec3 0 0 s) (vec3 0 0 1) color 0
-                 , Attributes (vec3 s 0 s) (vec3 0 0 1) color 0
-                 , Attributes (vec3 s s s) (vec3 0 0 1) color 0
-                 )
-               , ( Attributes (vec3 0 0 s) (vec3 0 0 1) color 0
-                 , Attributes (vec3 s s s) (vec3 0 0 1) color 0
-                 , Attributes (vec3 0 s s) (vec3 0 0 1) color 0
-                 )
-               , ( Attributes (vec3 0 s 0) (vec3 0 1 0) color 0
-                 , Attributes (vec3 s s 0) (vec3 0 1 0) color 0
-                 , Attributes (vec3 s s s) (vec3 0 1 0) color 0
-                 )
-               , ( Attributes (vec3 0 s 0) (vec3 0 1 0) color 0
-                 , Attributes (vec3 s s s) (vec3 0 1 0) color 0
-                 , Attributes (vec3 0 s s) (vec3 0 1 0) color 0
-                 )
-               , ( Attributes (vec3 s 0 0) (vec3 1 0 0) color 0
-                 , Attributes (vec3 s s 0) (vec3 1 0 0) color 0
-                 , Attributes (vec3 s s s) (vec3 1 0 0) color 0
-                 )
-               , ( Attributes (vec3 s 0 0) (vec3 1 0 0) color 0
-                 , Attributes (vec3 s s s) (vec3 1 0 0) color 0
-                 , Attributes (vec3 s 0 s) (vec3 1 0 0) color 0
-                 )
-               ]
-        -}
-        translate =
-            Mat4.makeTranslate (vec3 50 50 200)
-
-        map3 f ( a, b, c ) =
-            ( f a, f b, f c )
-
-        mapPosition f x =
-            { x | position = f x.position }
-
-        translated =
-            List.map (map3 (mapPosition (Mat4.transform translate))) attributes
+        attributes =
+            List.concat
+                [ bellies
+                    |> List.map (Mat4.transform (Mat4.makeScale3 1 1 1))
+                    |> strip -1 joint
+                , bellies
+                    |> List.map (Mat4.transform (Mat4.makeScale3 1 -1 1))
+                    |> strip 1 joint
+                , bellies
+                    |> List.map (Mat4.transform (Mat4.makeScale3 1 1 -1))
+                    |> strip 1 joint
+                , bellies
+                    |> List.map (Mat4.transform (Mat4.makeScale3 1 -1 -1))
+                    |> strip -1 joint
+                ]
     in
-        WebGL.triangles translated
+        WebGL.triangles attributes
 
 
 vertexShader : WebGL.Shader Attributes Uniforms Varyings
@@ -195,18 +179,16 @@ vertexShader =
         attribute vec4 color;
         attribute float joint;
 
-        uniform mat4 perspective;
-        uniform mat4 camera;
-        uniform vec3 pt;
-        uniform vec3 pt1;
+        uniform mat4 mvp;
+        uniform mat4 world;
         uniform vec4 spine;
         uniform vec2 pectoral;
 
         varying vec3 vnormal;
         varying vec4 vcolor;
         void main () {
-            gl_Position = perspective * camera * vec4(position, 1.0);
-            vnormal = normal;
+            gl_Position = mvp * vec4(position, 1.0);
+            vnormal = mat3(world) * normal;
             vcolor = color;
         }
     |]
