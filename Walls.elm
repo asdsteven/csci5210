@@ -109,7 +109,7 @@ fragmentShader =
         varying vec4 vcolor;
         void main () {
             gl_FragColor = vcolor;
-            gl_FragColor.rgb *= dot(vnormal, normalize(light));
+            gl_FragColor.rgb *= dot(vnormal, light);
             if (vnormal.y == 1.0 && mod(floor(vposition.x / 10.0), 2.0) != mod(floor(vposition.z / 10.0), 2.0)) {
                 gl_FragColor.rgb *= 0.8;
             }

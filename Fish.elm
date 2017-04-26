@@ -7,6 +7,7 @@ import Math.Vector4 as Vec4 exposing (vec4, Vec4)
 import Random
 import Types exposing (..)
 import WebGL
+import WebGL.Settings
 
 
 type alias Attributes =
@@ -43,7 +44,7 @@ update dt seed fish =
                 ( x, y, z ) =
                     Vec3.toTuple v
             in
-                vec3 (Vec3.length v) (atan2 y x) (acos (sqrt ((x^2+y^2)/(x^2+y^2+z^2))))
+                vec3 (Vec3.length v) (atan2 y x) (acos (sqrt ((x ^ 2 + y ^ 2) / (x ^ 2 + y ^ 2 + z ^ 2))))
 
         fromPolar3 v =
             let
@@ -146,6 +147,7 @@ update dt seed fish =
             let
                 ( u1, seed1 ) =
                     Random.step (Random.float 0 1) seed
+
                 ( u2, seed2 ) =
                     Random.step (Random.float 0 1) seed1
             in
@@ -160,26 +162,27 @@ update dt seed fish =
         ( g3, g4, seed3 ) =
             boxmuller seed2
 
-        sample g (l, r) =
+        sample g ( l, r ) =
             let
-                gg = g * 1 + (l + r) / 2
+                gg =
+                    g * 1 + (l + r) / 2
             in
                 clamp l r gg
 
         pt =
             fromPolar3 (vec3 r1 theta1 phi1)
---            fromPolar3 (vec3 (sample g1 domainrR2) (sample g2 domaintheta2) (sample g3 domainphi2))
 
-        (tube, qt) =
+        --            fromPolar3 (vec3 (sample g1 domainrR2) (sample g2 domaintheta2) (sample g3 domainphi2))
+        ( tube, qt ) =
             case fish.tube of
                 a :: b :: c :: d ->
                     if Vec3.distance b fish.pt < 10 then
-                        (b :: c :: d ++ [ a ], Vec3.scale 2 (Vec3.normalize (Vec3.sub c b)))
+                        ( b :: c :: d ++ [ a ], Vec3.scale 2 (Vec3.normalize (Vec3.sub c b)) )
                     else
-                        (fish.tube, fish.qt)
+                        ( fish.tube, fish.qt )
 
                 _ ->
-                    (fish.tube, fish.qt)
+                    ( fish.tube, fish.qt )
 
         tr =
             if fish.tr <= dt then
@@ -231,7 +234,7 @@ fish1 =
 
 entity : Uniforms -> WebGL.Entity
 entity uniforms =
-    WebGL.entity vertexShader fragmentShader mesh uniforms
+    WebGL.entityWith [ WebGL.Settings.cullFace WebGL.Settings.back ] vertexShader fragmentShader mesh uniforms
 
 
 mesh : WebGL.Mesh Attributes
@@ -265,9 +268,16 @@ mesh =
                         |> Vec3.normalize
                         |> Vec3.scale z
                         |> (\k ->
-                                ( Attributes a k color i
-                                , Attributes b k color i
-                                , Attributes c k color i
+                                (if z < 0 then
+                                    ( Attributes a k color i
+                                    , Attributes b k color i
+                                    , Attributes c k color i
+                                    )
+                                 else
+                                    ( Attributes c k color i
+                                    , Attributes b k color i
+                                    , Attributes a k color i
+                                    )
                                 )
                                     :: strip -z j (b :: c :: d)
                            )
@@ -328,6 +338,6 @@ fragmentShader =
         varying vec4 vcolor;
         void main () {
             gl_FragColor = vcolor;
-            gl_FragColor.rgb *= dot(vnormal, normalize(light));
+            gl_FragColor.rgb *= dot(vnormal, light);
         }
     |]
