@@ -58,13 +58,13 @@ view model =
             vec3 (f 1) (f 2) (f 3) |> Vec3.scale 1
 
         input456 =
-            vec3 (f 4) (f 5) (f 6) |> Vec3.scale 1
+            vec3 (f 4) (f 5) (f 6)
 
         perspective =
             Mat4.makePerspective 45 (16 / 9) 0.01 1000
 
         location =
-            vec3 130 80 340
+            Vec3.add (Vec3.scale 100 input456) (vec3 130 80 340)
 
         center =
             vec3 110 10 -210
@@ -76,7 +76,7 @@ view model =
             Mat4.mul perspective camera
 
         light =
-            Vec3.normalize (vec3 0.34 0.405 0.484)
+            Vec3.normalize (Vec3.add input123 (vec3 0.34 0.405 0.484))
 
         wallsEntity =
             Walls.entity
@@ -105,14 +105,11 @@ view model =
 
                 rotate2 =
                     Mat4.rotate (acos (Vec3.dot v2 (vec3 -1 0 0))) (Vec3.cross (vec3 -1 0 0) v2) rotate1
-                rotate3 =
-                    Mat4.rotate (degrees (360 * Vec3.getX input123)) Vec3.j rotate2
-
             in
                 Fish.entity
                     (Fish.Uniforms
-                        (Mat4.mul perspectiveCamera rotate3)
-                        rotate3
+                        (Mat4.mul perspectiveCamera rotate2)
+                        rotate2
                         f.spine
                         f.pectoral
                         light
