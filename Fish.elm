@@ -24,6 +24,7 @@ type alias Uniforms =
     , spine : Vec4
     , pectoral : Vec2
     , light : Vec3
+    , wobble : Float
     }
 
 
@@ -197,6 +198,7 @@ update dt seed fish =
                 , qt = qt
                 , tube = tube
                 , tr = tr
+                , wobble = fish.wobble + dt * 10
             }
     in
         ( seed3, fish_ )
@@ -229,6 +231,7 @@ fish1 =
     , spine = vec4 0 0 0 0
     , pectoral = vec2 0 0
     , tube = tube1
+    , wobble = 0
     }
 
 
@@ -316,11 +319,16 @@ vertexShader =
         uniform mat4 world;
         uniform vec4 spine;
         uniform vec2 pectoral;
+        uniform float wobble;
 
         varying vec3 vnormal;
         varying vec4 vcolor;
         void main () {
-            gl_Position = mvp * vec4(position, 1.0);
+            gl_Position = mvp * vec4(
+                                     position.x + sin(0.2 * wobble + 0.5 * position.x),
+                                     position.y +  (cos(wobble) + sin(0.2 * wobble + 0.8 * position.y)),
+                                     position.z + position.x * 0.02 * (cos(wobble + 0.1 * position.z * wobble) + sin(0.5 * wobble + 0.3 * position.z)), 1.0
+                          );
             vnormal = mat3(world) * normal;
             vcolor = color;
         }

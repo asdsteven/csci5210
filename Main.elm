@@ -113,6 +113,7 @@ view model =
                         f.spine
                         f.pectoral
                         light
+                        f.wobble
                     )
 
         fishEntities =

@@ -43,6 +43,7 @@ type alias Fish =
     , spine : Vec4
     , pectoral : Vec2
     , tube : List Vec3
+    , wobble : Float
     }
 
 
